@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.contrib.admin.widgets import AutocompleteSelect as Base
 from django import forms
 from django.contrib import admin
@@ -8,6 +9,7 @@ from django.forms.widgets import Media, MEDIA_TYPES, media_property
 from django.shortcuts import reverse
 from django import VERSION as DJANGO_VERSION
 
+
 class AutocompleteSelect(Base):
     def __init__(self, rel, admin_site, attrs=None, choices=(), using=None, custom_url=None):
         self.custom_url = custom_url
@@ -16,18 +18,45 @@ class AutocompleteSelect(Base):
     def get_url(self):
         return self.custom_url if self.custom_url else super().get_url()
 
+    def optgroups(self, name, value, attr=None):
+        """Return selected options based on the ModelChoiceIterator."""
+        default = (None, [], 0)
+        groups = [default]
+        has_selected = False
+        selected_choices = {
+            str(v) for v in value
+            if str(v) not in self.choices.field.empty_values
+        }
+        if not self.is_required and not self.allow_multiple_selected:
+            default[1].append(self.create_option(name, '', '', False, 0))
+        choices = (
+            (obj.pk, self.choices.field.label_from_instance(obj))
+            for obj in self.choices.queryset.using(self.db).filter(pk__in=selected_choices)
+        )
+        for option_value, option_label in choices:
+            selected = (
+                    str(option_value) in value and
+                    (has_selected is False or self.allow_multiple_selected)
+            )
+            has_selected |= selected
+            index = len(default[1])
+            subgroup = default[1]
+            subgroup.append(self.create_option(name, option_value, option_label, selected_choices, index))
+        return groups
+
 
 class AutocompleteFilter(admin.SimpleListFilter):
     template = 'django-admin-autocomplete-filter/autocomplete-filter.html'
     title = ''
     field_name = ''
-    field_pk = 'pk'
+    field_pk = 'id'
     use_pk_exact = True
     is_placeholder_title = False
     widget_attrs = {}
     rel_model = None
     parameter_name = None
     form_field = forms.ModelChoiceField
+    autocomplete_model = None
 
     class Media:
         js = (
@@ -41,19 +70,28 @@ class AutocompleteFilter(admin.SimpleListFilter):
         }
 
     def __init__(self, request, params, model, model_admin):
-        if self.parameter_name is None:
-            self.parameter_name = self.field_name
-            if self.use_pk_exact:
-                self.parameter_name += '__{}__exact'.format(self.field_pk)
+        if self.autocomplete_model:
+            self.rel_model = apps.get_model(self.autocomplete_model)
+
+        parameter_name = '{}__{}__in'.format(
+            self.field_name, self.field_pk)
+        params[parameter_name] = ','.join(request.GET.getlist(parameter_name))
+
+        self.parameter_name = '{}__{}__in'.format(
+            self.field_name, self.field_pk)
+        self.used_parameters = {}
+
         super().__init__(request, params, model, model_admin)
 
+        field_to_use = self.field_name
         if self.rel_model:
             model = self.rel_model
+            field_to_use = self.field_pk
 
         if DJANGO_VERSION >= (3, 2):
-            remote_field = model._meta.get_field(self.field_name)
+            remote_field = model._meta.get_field(field_to_use)
         else:
-            remote_field = model._meta.get_field(self.field_name).remote_field
+            remote_field = model._meta.get_field(field_to_use).remote_field
 
         widget = AutocompleteSelect(remote_field,
                                     model_admin.admin_site,
@@ -74,29 +112,12 @@ class AutocompleteFilter(admin.SimpleListFilter):
             attrs['data-Placeholder'] = self.title
         self.rendered_widget = field.widget.render(
             name=self.parameter_name,
-            value=self.used_parameters.get(self.parameter_name, ''),
+            value=self.value(),
             attrs=attrs
         )
 
-    @staticmethod
-    def get_queryset_for_field(model, name):
-        try:
-            field_desc = getattr(model, name)
-        except AttributeError:
-            field_desc = model._meta.get_field(name)
-        if isinstance(field_desc, ManyToManyDescriptor):
-            related_model = field_desc.rel.related_model if field_desc.reverse else field_desc.rel.model
-        elif isinstance(field_desc, ReverseManyToOneDescriptor):
-            related_model = field_desc.rel.related_model  # look at field_desc.related_manager_cls()?
-        elif isinstance(field_desc, ForeignObjectRel):
-            # includes ManyToOneRel, ManyToManyRel
-            # also includes OneToOneRel - not sure how this would be used
-            related_model = field_desc.related_model
-        else:
-            # primarily for ForeignKey/ForeignKeyDeferredAttribute
-            # also includes ForwardManyToOneDescriptor, ForwardOneToOneDescriptor, ReverseOneToOneDescriptor
-            return field_desc.get_queryset()
-        return related_model.objects.get_queryset()
+    def get_queryset_for_field(self, model, name):
+        return self.rel_model._meta.default_manager.all()
 
     def get_form_field(self):
         """Return the type of form field to be used."""
@@ -121,6 +142,12 @@ class AutocompleteFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return ()
+
+    def value(self):
+        if self.used_parameters.get(self.parameter_name):
+            return self.used_parameters.get(self.parameter_name).split(',')
+        else:
+            return []
 
     def queryset(self, request, queryset):
         if self.value():
