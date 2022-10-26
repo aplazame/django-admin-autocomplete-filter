@@ -1,9 +1,10 @@
 """Defines the admin interface for the test app, including inlines and filters."""
 
-from django import forms
+from django import forms, VERSION
 from django.contrib import admin
 from django.shortcuts import reverse
 from django.urls import path
+from admin_auto_filters.views import AutocompleteJsonView
 from admin_auto_filters.filters import AutocompleteFilter, AutocompleteFilterFactory
 from .models import Food, Person, Collection, Book
 from .views import FoodsThatAreFavorites
@@ -130,6 +131,7 @@ class RevCollectionFilter(AutocompleteFilter):
 
 class AuthorFilter(AutocompleteFilter):
     title = 'author (manual)'
+    field_pk = 'isbn'
     field_name = 'author'
     rel_model = Book
     parameter_name = 'author'
@@ -137,6 +139,7 @@ class AuthorFilter(AutocompleteFilter):
 
 class CollectionFilter(AutocompleteFilter):
     title = 'collection (manual)'
+    field_pk = 'isbn'
     field_name = 'coll'
     rel_model = Book
     parameter_name = 'coll'
@@ -145,6 +148,7 @@ class CollectionFilter(AutocompleteFilter):
 class PeopleWithFavBookFilter(AutocompleteFilter):
     title = 'people with this fav book (manual)'
     field_name = 'people_with_this_fav_book'
+    field_pk = 'isbn'
     rel_model = Book
     parameter_name = 'people_with_this_fav_book'
 
@@ -190,6 +194,15 @@ class CustomAdmin(admin.ModelAdmin):
             return self.list_filter_auto
         else:
             raise ValueError('Unexpected username.')
+
+    # def get_urls(self):
+    #     urls = [
+    #         path(r'^admin/autocomplete/$',
+    #             AutocompleteJsonView.as_view(admin_site=self.admin_site))
+    #         if url.pattern.match('autocomplete/')
+    #         else url for url in super().get_urls()
+    #     ]
+    #     return urls
 
 
 @admin.register(Food)
@@ -273,11 +286,17 @@ class PersonAdmin(CustomAdmin):
 
     def get_urls(self):
         urls = super().get_urls()
-        custom_urls = [
-            path('foods_that_are_favorites/',
-                 self.admin_site.admin_view(FoodsThatAreFavorites.as_view(model_admin=self)),
-                 name='foods_that_are_favorites'),
-        ]
+        if VERSION >= (3, 2):
+            custom_urls = [path(
+                'foods_that_are_favorites/',
+                self.admin_site.admin_view(FoodsThatAreFavorites.as_view(admin_site=self.admin_site)),
+                name='foods_that_are_favorites'
+            )]
+        else:
+            custom_urls = [path('foods_that_are_favorites/',
+                self.admin_site.admin_view(FoodsThatAreFavorites.as_view(model_admin=self)),
+                name='foods_that_are_favorites'
+            )]
         return custom_urls + urls
 
 
