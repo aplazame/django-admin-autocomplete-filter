@@ -6,7 +6,6 @@ from django.db.models.constants import LOOKUP_SEP  # this is '__'
 from django.forms.widgets import Media, MEDIA_TYPES, media_property
 from django.shortcuts import reverse
 from django import VERSION as DJANGO_VERSION
-from admin_auto_filters.views import AutocompleteJsonView
 
 
 class AutocompleteSelect(Base):
