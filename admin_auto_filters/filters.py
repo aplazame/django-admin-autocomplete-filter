@@ -158,6 +158,25 @@ class AutocompleteFilter(admin.SimpleListFilter):
             Hook to specify your custom view for autocomplete,
             instead of default django admin's search_results.
         '''
+        # For django > 3.2 please override this method and create a custom
+        # view for handling the autocomplete due to the breaking changes
+        # this version introduces.
+
+        # You will need to create a custom admin as following:
+
+        # class MyAdminSite(admin.AdminSite):
+        #     def get_urls(self):
+        #         urls = super().get_urls()
+        #         custom_autocomplete = url(
+        #             r'^custom-autocomplete/$',
+        #             self.admin_view(AutocompleteJsonView.as_view(admin_site=self)),
+        #             name='custom-autocomplete'
+        #         )
+        #         urls = [custom_autocomplete] + urls
+        #         return urls
+    
+        # After all you will be forced to change this method in order to return 
+        # > reverse('admin:custom-autocomplete')
         return None
 
 

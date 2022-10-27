@@ -1,9 +1,10 @@
 """Defines the admin interface for the test app, including inlines and filters."""
 
-from django import forms
+from django import forms, VERSION
 from django.contrib import admin
 from django.shortcuts import reverse
 from django.urls import path
+from admin_auto_filters.views import AutocompleteJsonView
 from admin_auto_filters.filters import AutocompleteFilter, AutocompleteFilterFactory
 from .models import Food, Person, Collection, Book
 from .views import FoodsThatAreFavorites
@@ -13,6 +14,20 @@ from .views import FoodsThatAreFavorites
 BASIC_USERNAME = 'bu'  # password is 'bu'
 SHORTCUT_USERNAME = 'su'  # password is 'su'
 
+
+class CustomAdmin(admin.ModelAdmin):
+    list_filter_auto = []
+
+    class Media:
+        css = {'all': ('custom.css',)}
+
+    def get_list_filter(self, request):
+        if request.user.username == BASIC_USERNAME:
+            return self.list_filter
+        elif request.user.username == SHORTCUT_USERNAME:
+            return self.list_filter_auto
+        else:
+            raise ValueError('Unexpected username.')
 
 class PersonFoodFilter(AutocompleteFilter):
     title = 'favorite food of person (manual)'
@@ -131,21 +146,21 @@ class RevCollectionFilter(AutocompleteFilter):
 class AuthorFilter(AutocompleteFilter):
     title = 'author (manual)'
     field_name = 'author'
-    rel_model = Book
+    rel_model = Person
     parameter_name = 'author'
 
 
 class CollectionFilter(AutocompleteFilter):
     title = 'collection (manual)'
     field_name = 'coll'
-    rel_model = Book
+    rel_model = Collection
     parameter_name = 'coll'
 
 
 class PeopleWithFavBookFilter(AutocompleteFilter):
     title = 'people with this fav book (manual)'
     field_name = 'people_with_this_fav_book'
-    rel_model = Book
+    rel_model = Person
     parameter_name = 'people_with_this_fav_book'
 
 
@@ -175,21 +190,6 @@ class BookInline(admin.TabularInline):
     extra = 0
     fields = ['isbn', 'title']
     model = Book
-
-
-class CustomAdmin(admin.ModelAdmin):
-    list_filter_auto = []
-
-    class Media:
-        css = {'all': ('custom.css',)}
-
-    def get_list_filter(self, request):
-        if request.user.username == BASIC_USERNAME:
-            return self.list_filter
-        elif request.user.username == SHORTCUT_USERNAME:
-            return self.list_filter_auto
-        else:
-            raise ValueError('Unexpected username.')
 
 
 @admin.register(Food)
@@ -273,16 +273,23 @@ class PersonAdmin(CustomAdmin):
 
     def get_urls(self):
         urls = super().get_urls()
-        custom_urls = [
-            path('foods_that_are_favorites/',
-                 self.admin_site.admin_view(FoodsThatAreFavorites.as_view(model_admin=self)),
-                 name='foods_that_are_favorites'),
-        ]
+        if VERSION >= (3, 2):
+            custom_urls = [path(
+                'foods_that_are_favorites/',
+                self.admin_site.admin_view(FoodsThatAreFavorites.as_view(admin_site=self.admin_site)),
+                name='foods_that_are_favorites'
+            )]
+        else:
+            custom_urls = [path('foods_that_are_favorites/',
+                self.admin_site.admin_view(FoodsThatAreFavorites.as_view(model_admin=self)),
+                name='foods_that_are_favorites'
+            )]
         return custom_urls + urls
 
 
 @admin.register(Book)
 class BookAdmin(CustomAdmin):
+    search_fields = ['isbn']
     autocomplete_fields = ['author', 'coll']
     fields = ['isbn', 'title', 'author', 'coll']
     inlines = []
@@ -292,6 +299,7 @@ class BookAdmin(CustomAdmin):
         AuthorFilter,
         CollectionFilter,
         PeopleWithFavBookFilter,
+        
     ]
     list_filter_auto = [
         AutocompleteFilterFactory('author (auto)', 'author'),
