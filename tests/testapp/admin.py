@@ -15,6 +15,20 @@ BASIC_USERNAME = 'bu'  # password is 'bu'
 SHORTCUT_USERNAME = 'su'  # password is 'su'
 
 
+class CustomAdmin(admin.ModelAdmin):
+    list_filter_auto = []
+
+    class Media:
+        css = {'all': ('custom.css',)}
+
+    def get_list_filter(self, request):
+        if request.user.username == BASIC_USERNAME:
+            return self.list_filter
+        elif request.user.username == SHORTCUT_USERNAME:
+            return self.list_filter_auto
+        else:
+            raise ValueError('Unexpected username.')
+
 class PersonFoodFilter(AutocompleteFilter):
     title = 'favorite food of person (manual)'
     field_name = 'person'
@@ -131,25 +145,22 @@ class RevCollectionFilter(AutocompleteFilter):
 
 class AuthorFilter(AutocompleteFilter):
     title = 'author (manual)'
-    field_pk = 'isbn'
     field_name = 'author'
-    rel_model = Book
+    rel_model = Person
     parameter_name = 'author'
 
 
 class CollectionFilter(AutocompleteFilter):
     title = 'collection (manual)'
-    field_pk = 'isbn'
     field_name = 'coll'
-    rel_model = Book
+    rel_model = Collection
     parameter_name = 'coll'
 
 
 class PeopleWithFavBookFilter(AutocompleteFilter):
     title = 'people with this fav book (manual)'
     field_name = 'people_with_this_fav_book'
-    field_pk = 'isbn'
-    rel_model = Book
+    rel_model = Person
     parameter_name = 'people_with_this_fav_book'
 
 
@@ -179,30 +190,6 @@ class BookInline(admin.TabularInline):
     extra = 0
     fields = ['isbn', 'title']
     model = Book
-
-
-class CustomAdmin(admin.ModelAdmin):
-    list_filter_auto = []
-
-    class Media:
-        css = {'all': ('custom.css',)}
-
-    def get_list_filter(self, request):
-        if request.user.username == BASIC_USERNAME:
-            return self.list_filter
-        elif request.user.username == SHORTCUT_USERNAME:
-            return self.list_filter_auto
-        else:
-            raise ValueError('Unexpected username.')
-
-    # def get_urls(self):
-    #     urls = [
-    #         path(r'^admin/autocomplete/$',
-    #             AutocompleteJsonView.as_view(admin_site=self.admin_site))
-    #         if url.pattern.match('autocomplete/')
-    #         else url for url in super().get_urls()
-    #     ]
-    #     return urls
 
 
 @admin.register(Food)
@@ -302,6 +289,7 @@ class PersonAdmin(CustomAdmin):
 
 @admin.register(Book)
 class BookAdmin(CustomAdmin):
+    search_fields = ['isbn']
     autocomplete_fields = ['author', 'coll']
     fields = ['isbn', 'title', 'author', 'coll']
     inlines = []
@@ -311,6 +299,7 @@ class BookAdmin(CustomAdmin):
         AuthorFilter,
         CollectionFilter,
         PeopleWithFavBookFilter,
+        
     ]
     list_filter_auto = [
         AutocompleteFilterFactory('author (auto)', 'author'),
