@@ -7,20 +7,18 @@ on:
       - dev
       - master
   pull_request:
+    branches:
+      - pre_release
+      - dev
+      - master
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   sonarqube:
     name: Test SonarQube Scan
-    runs-on: ${{ vars.AWS_RG_NAME_PRO }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-    
-      - name: SonarQube Scan
-        uses: aplazame/.github/workflows/test-reusable-sonarqube.yml@master
-        env:
-          SONAR_TOKEN: ${{ secrets.WZ_SONAR_TOKEN }}
+    uses: aplazame/.github/workflows/test-reusable-sonarqube.yml@master
+    secrets:
+      SONAR_TOKEN: ${{ secrets.WZ_SONAR_TOKEN }}
