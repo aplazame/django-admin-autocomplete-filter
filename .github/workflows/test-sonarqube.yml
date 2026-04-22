@@ -14,13 +14,13 @@ jobs:
   sonarqube:
     name: Test SonarQube Scan
     runs-on: ${{ vars.AWS_RG_NAME_PRO }}
+    if: ${{ github.ref_type == 'branch' && (github.ref_name == 'pre_release' || github.ref_name == 'dev' || github.ref_name == 'master') }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
     
-      - name: SonarQube Scan  
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: SonarQube Scan
         uses: aplazame/.github/workflows/test-reusable-sonarqube.yml@master
-        secrets: 
+        secrets:
           SONAR_TOKEN: ${{ secrets.WZ_SONAR_TOKEN }}
