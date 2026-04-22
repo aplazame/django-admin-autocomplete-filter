@@ -14,7 +14,6 @@ jobs:
   sonarqube:
     name: Test SonarQube Scan
     runs-on: ${{ vars.AWS_RG_NAME_PRO }}
-    if: ${{ github.ref_type == 'branch' && (github.ref_name == 'pre_release' || github.ref_name == 'dev' || github.ref_name == 'master') }}
 
     steps:
       - name: Checkout
