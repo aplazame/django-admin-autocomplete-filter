@@ -1,0 +1,24 @@
+name: Test SonarQube
+
+on:
+  push:
+    branches:
+      - pre_release
+      - dev
+      - master
+  pull_request:
+    branches:
+      - pre_release
+      - dev
+      - master
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sonarqube:
+    name: Test SonarQube Scan
+    uses: ./.github/workflows/test-reusable-sonarqube.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.WZ_SONAR_TOKEN }}
